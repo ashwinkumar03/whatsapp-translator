@@ -5,13 +5,22 @@ const {Translate} = require('@google-cloud/translate').v2;
 const fetch = require('node-fetch');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const { body, validationResult } = require('express-validator');
+const { body, validationResult, header } = require('express-validator');
+const crypto = require('crypto');
 
 // Add this near the top of the file, after imports
 const isTestEnvironment = process.env.NODE_ENV === 'development';
 
-// Validate required environment variables
-const requiredEnvVars = ['WHATSAPP_TOKEN', 'WHATSAPP_VERIFY_TOKEN', 'GOOGLE_PROJECT_ID'];
+// Add after your imports
+const requiredEnvVars = [
+    'WHATSAPP_TOKEN',
+    'WHATSAPP_VERIFY_TOKEN',
+    'GOOGLE_PROJECT_ID',
+    'GOOGLE_APPLICATION_CREDENTIALS_JSON',
+    'ALLOWED_PHONE_NUMBERS',
+    'NODE_ENV'
+];
+
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         console.error(`Missing required environment variable: ${envVar}`);
@@ -23,7 +32,20 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: true,
+    crossOriginEmbedderPolicy: true,
+    crossOriginOpenerPolicy: true,
+    crossOriginResourcePolicy: true,
+    dnsPrefetchControl: true,
+    frameguard: true,
+    hidePoweredBy: true,
+    hsts: true,
+    ieNoOpen: true,
+    noSniff: true,
+    referrerPolicy: true,
+    xssFilter: true
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -32,14 +54,13 @@ const limiter = rateLimit({
 });
 app.use('/webhook', limiter);
 
-// Only allow requests from WhatsApp IPs in production
+// IP whitelisting in production
 app.use('/webhook', (req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
-        // Add WhatsApp IP ranges here
+        // WhatsApp IP ranges
         const whatsappIPs = ['157.240.0.0/16', '69.171.250.0/24', '69.171.251.0/24'];
         const clientIP = req.ip;
         
-        // Basic IP check (you might want to use a proper IP checking library)
         const isWhatsAppIP = whatsappIPs.some(range => 
             clientIP.startsWith(range.split('/')[0].slice(0, -1))
         );
@@ -82,16 +103,34 @@ app.get('/webhook', (req, res) => {
     }
 });
 
+// Add this to your environment variables
+const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',') || [];
+
 // Handle incoming messages
 app.post('/webhook', [
     body('object').exists(),
     body('entry.*.changes.*.value.messages.*.text.body').exists(),
     body('entry.*.changes.*.value.metadata.phone_number_id').exists(),
-    body('entry.*.changes.*.value.messages.*.from').exists()
+    body('entry.*.changes.*.value.messages.*.from').exists(),
+    
+    // Add WhatsApp signature validation
+    header('x-hub-signature-256').exists(),
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Verify WhatsApp signature
+    const signature = req.header('x-hub-signature-256');
+    const expectedSignature = crypto
+        .createHmac('sha256', process.env.WHATSAPP_TOKEN)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+    if (!signature || `sha256=${expectedSignature}` !== signature) {
+        console.warn('Invalid signature received');
+        return res.sendStatus(401);
     }
 
     if (req.body.object) {
@@ -103,6 +142,16 @@ app.post('/webhook', [
         ) {
             const phone_number_id = req.body.entry[0].changes[0].value.metadata.phone_number_id;
             const from = req.body.entry[0].changes[0].value.messages[0].from;
+
+            // Check if sender is authorized
+            if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
+                console.warn(`Unauthorized message from: ${from}`);
+                return res.status(403).json({ 
+                    error: 'Unauthorized sender',
+                    message: 'This service is private'
+                });
+            }
+
             const msg_body = req.body.entry[0].changes[0].value.messages[0].text.body;
 
             try {
@@ -170,6 +219,16 @@ async function sendMessage(phone_number_id, to, message) {
 app.get('/', (req, res) => {
     res.status(200).send('WhatsApp Translator Bot is running!');
 });
+
+// Add near the top of your file
+const requestLogger = (req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - IP: ${req.ip}`);
+    }
+    next();
+};
+
+app.use(requestLogger);
 
 app.listen(port, () => {
     console.log(`Webhook is listening on port ${port}`);
