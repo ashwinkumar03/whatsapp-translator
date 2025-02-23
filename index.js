@@ -31,6 +31,9 @@ for (const envVar of requiredEnvVars) {
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Add this line before other middleware
+app.set('trust proxy', 1);  // Trust first proxy (Render)
+
 // Security middleware
 app.use(helmet({
     contentSecurityPolicy: true,
