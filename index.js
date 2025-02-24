@@ -60,6 +60,10 @@ app.use('/webhook', limiter);
 
 // IP whitelisting in production
 app.use('/webhook', (req, res, next) => {
+    // Temporarily disable IP check
+    return next();
+    
+    /* Original code
     if (process.env.NODE_ENV === 'production') {
         // Skip IP check for GET requests (webhook verification)
         if (req.method === 'GET') {
@@ -79,6 +83,7 @@ app.use('/webhook', (req, res, next) => {
         }
     }
     next();
+    */
 });
 
 // Initialize Google Translate with credentials
@@ -133,12 +138,13 @@ app.use((req, res, next) => {
 // Handle incoming messages
 app.post('/webhook', [
     body('object').exists(),
+    // Remove these strict validations temporarily
+    /*
     body('entry.*.changes.*.value.messages.*.text.body').exists(),
     body('entry.*.changes.*.value.metadata.phone_number_id').exists(),
     body('entry.*.changes.*.value.messages.*.from').exists(),
-    
-    // Add WhatsApp signature validation
     header('x-hub-signature-256').exists(),
+    */
 ], async (req, res) => {
     console.log('Webhook POST received');
     console.log('Full request:', {
