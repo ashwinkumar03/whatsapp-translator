@@ -59,12 +59,8 @@ const limiter = rateLimit({
 });
 app.use('/webhook', limiter);
 
-// IP whitelisting in production
+// Re-enable IP whitelisting with improved checks
 app.use('/webhook', (req, res, next) => {
-    // Temporarily disable IP check
-    return next();
-    
-    /* Original code
     if (process.env.NODE_ENV === 'production') {
         // Skip IP check for GET requests (webhook verification)
         if (req.method === 'GET') {
@@ -80,11 +76,11 @@ app.use('/webhook', (req, res, next) => {
         );
 
         if (!isWhatsAppIP) {
+            console.warn(`Unauthorized IP attempt: ${clientIP}`);
             return res.status(403).json({ error: 'Unauthorized IP' });
         }
     }
     next();
-    */
 });
 
 // Initialize Google Translate with credentials
@@ -139,16 +135,13 @@ app.use((req, res, next) => {
     next();
 });
 
-// Handle incoming messages
+// Re-enable proper request validation
 app.post('/webhook', [
     body('object').exists(),
-    // Remove these strict validations temporarily
-    /*
     body('entry.*.changes.*.value.messages.*.text.body').exists(),
     body('entry.*.changes.*.value.metadata.phone_number_id').exists(),
     body('entry.*.changes.*.value.messages.*.from').exists(),
     header('x-hub-signature-256').exists(),
-    */
 ], async (req, res) => {
     console.log('Webhook POST received');
     console.log('Full request:', {
@@ -164,23 +157,17 @@ app.post('/webhook', [
         return res.status(400).json({ errors: errors.array() });
     }
 
-    // Verify WhatsApp signature
+    // Re-enable signature verification
     const signature = req.header('x-hub-signature-256');
     const expectedSignature = crypto
         .createHmac('sha256', process.env.WHATSAPP_TOKEN)
-        .update(Buffer.from(JSON.stringify(req.body)))  // Convert to buffer
+        .update(Buffer.from(JSON.stringify(req.body)))
         .digest('hex');
 
-    if (signature) {
-        console.log('Received signature:', signature);
-        console.log('Expected signature:', `sha256=${expectedSignature}`);
+    if (!signature || `sha256=${expectedSignature}` !== signature) {
+        console.warn('Invalid signature received');
+        return res.sendStatus(401);
     }
-
-    // Temporarily disable signature check for testing
-    // if (!signature || `sha256=${expectedSignature}` !== signature) {
-    //     console.warn('Invalid signature received');
-    //     return res.sendStatus(401);
-    // }
 
     if (req.body.object === 'whatsapp_business_account') {
         const entry = req.body.entry[0];
