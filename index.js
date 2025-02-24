@@ -192,46 +192,34 @@ app.post('/webhook', [
             const message = value.messages[0];
             console.log('Received message:', message);
             
-            if (req.body.entry &&
-                req.body.entry[0].changes &&
-                req.body.entry[0].changes[0] &&
-                req.body.entry[0].changes[0].value.messages &&
-                req.body.entry[0].changes[0].value.messages[0]
-            ) {
-                const phone_number_id = req.body.entry[0].changes[0].value.metadata.phone_number_id;
-                const from = req.body.entry[0].changes[0].value.messages[0].from;
+            try {
+                // Get the correct phone_number_id from metadata
+                const phone_number_id = value.metadata.phone_number_id;
+                const from = message.from;
+                const msg_body = message.text.body;
 
-                // Comment out the phone number check temporarily
-                /* 
-                if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
-                    console.warn(`Unauthorized message from: ${from}`);
-                    return res.status(403).json({ 
-                        error: 'Unauthorized sender',
-                        message: 'This service is private'
-                    });
-                }
-                */
+                console.log('Processing message:', {
+                    phone_number_id,
+                    from,
+                    msg_body
+                });
 
-                const msg_body = req.body.entry[0].changes[0].value.messages[0].text.body;
-
-                try {
-                    // Translate the message to English
-                    const [translation] = await translate.translate(msg_body, 'en');
-                    
-                    // Send the translated message back
-                    await sendMessage(phone_number_id, from, `Translated text: ${translation}`);
-                    
-                    return res.status(200).json({ 
-                        success: true, 
-                        translation: translation 
-                    });
-                } catch (error) {
-                    console.error('Translation error:', error);
-                    return res.status(500).json({ 
-                        error: 'Translation failed',
-                        details: error.message 
-                    });
-                }
+                // Translate the message to English
+                const [translation] = await translate.translate(msg_body, 'en');
+                
+                // Send the translated message back
+                await sendMessage(phone_number_id, from, `Translated text: ${translation}`);
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    translation: translation 
+                });
+            } catch (error) {
+                console.error('Translation error:', error);
+                return res.status(500).json({ 
+                    error: 'Translation failed',
+                    details: error.message 
+                });
             }
         } else if (value.statuses) {
             // Handle status update
@@ -245,12 +233,11 @@ app.post('/webhook', [
 
 // Modify the sendMessage function
 async function sendMessage(phone_number_id, to, message) {
-    // In test/development environment, mock the WhatsApp API call
-    if (isTestEnvironment) {
-        console.log('Test environment: Mocking WhatsApp API call');
-        console.log('Would have sent:', { to, message });
-        return { success: true, mocked: true };
-    }
+    console.log('Sending message:', {
+        phone_number_id,
+        to,
+        message
+    });
 
     // Real WhatsApp API call for production
     const url = `https://graph.facebook.com/v18.0/${phone_number_id}/messages`;
@@ -270,7 +257,8 @@ async function sendMessage(phone_number_id, to, message) {
         });
 
         if (!response.ok) {
-            throw new Error(`WhatsApp API error! status: ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(`WhatsApp API error! status: ${response.status}, details: ${JSON.stringify(errorData)}`);
         }
         
         return await response.json();
