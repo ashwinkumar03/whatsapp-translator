@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Send HTTP GET request
         run: |
-          curl -X GET ${{ secrets.RENDER_SERVICE_URL }}
+          curl -X GET ${{ secrets.RENDER_SERVICE_URL }} --max-time 10
         env:
           RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }} 

@@ -158,14 +158,19 @@ app.post('/webhook', [
     }
 
     // Re-enable signature verification
-    const signature = req.header('x-hub-signature-256');
-    const expectedSignature = crypto
-        .createHmac('sha256', process.env.WHATSAPP_TOKEN)
-        .update(Buffer.from(JSON.stringify(req.body)))
-        .digest('hex');
+    try {
+        const signature = req.header('x-hub-signature-256');
+        const expectedSignature = crypto
+            .createHmac('sha256', process.env.WHATSAPP_TOKEN)
+            .update(Buffer.from(JSON.stringify(req.body)))
+            .digest('hex');
 
-    if (!signature || `sha256=${expectedSignature}` !== signature) {
-        console.warn('Invalid signature received');
+        if (!signature || `sha256=${expectedSignature}` !== signature) {
+            console.warn('Invalid signature received');
+            return res.sendStatus(401);
+        }
+    } catch (error) {
+        console.error('Signature verification failed:', error);
         return res.sendStatus(401);
     }
 
