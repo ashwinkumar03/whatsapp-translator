@@ -123,6 +123,9 @@ const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',').map(
     num.startsWith('1') ? num : `1${num}`
 ) || [];
 
+// Add debug line to verify allowed numbers on startup
+console.log('Allowed phone numbers:', ALLOWED_PHONE_NUMBERS);
+
 // Update the logging middleware
 app.use((req, res, next) => {
     console.log('--------------------');
@@ -191,12 +194,27 @@ app.post('/webhook', [
         if (value.messages) {
             // Handle incoming message
             const message = value.messages[0];
+            const from = message.from;
+            
             console.log('Received message:', message);
+            
+            // Add phone number check
+            if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
+                console.log(`Unauthorized phone number attempted to use bot: ${from}`);
+                // Send a friendly message to unauthorized users
+                await sendMessage(
+                    process.env.WHATSAPP_PHONE_NUMBER_ID,
+                    from,
+                    "Sorry, this translation service is currently restricted to authorized users only."
+                );
+                return res.status(403).json({
+                    error: 'Unauthorized phone number'
+                });
+            }
             
             try {
                 // Use environment variable instead of constant
                 const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID;
-                const from = message.from;
                 const msg_body = message.text.body;
 
                 console.log('Processing message:', {
