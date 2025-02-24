@@ -29,4 +29,8 @@ Never commit your `.env` file or any credentials to version control!
 
 ## License
 
-[Add your chosen license here] 
+[Add your chosen license here]
+
+## Service Uptime
+
+This repository includes a GitHub Action that pings the service every 12 minutes to prevent it from going to sleep on Render's free tier. The workflow can be found in `.github/workflows/keep-alive.yml`. 

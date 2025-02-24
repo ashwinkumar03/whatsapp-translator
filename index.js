@@ -274,7 +274,7 @@ async function sendMessage(phone_number_id, to, message) {
     }
 }
 
-// Add a health check endpoint
+// This is your health check endpoint that the action will hit
 app.get('/', (req, res) => {
     res.status(200).send('WhatsApp Translator Bot is running!');
 });
