@@ -60,6 +60,11 @@ app.use('/webhook', limiter);
 // IP whitelisting in production
 app.use('/webhook', (req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
+        // Skip IP check for GET requests (webhook verification)
+        if (req.method === 'GET') {
+            return next();
+        }
+
         // WhatsApp IP ranges
         const whatsappIPs = ['157.240.0.0/16', '69.171.250.0/24', '69.171.251.0/24'];
         const clientIP = req.ip;
