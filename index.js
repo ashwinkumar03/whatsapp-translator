@@ -59,30 +59,6 @@ const limiter = rateLimit({
 });
 app.use('/webhook', limiter);
 
-// Re-enable IP whitelisting with improved checks
-app.use('/webhook', (req, res, next) => {
-    if (process.env.NODE_ENV === 'production') {
-        // Skip IP check for GET requests (webhook verification)
-        if (req.method === 'GET') {
-            return next();
-        }
-
-        // WhatsApp IP ranges
-        const whatsappIPs = ['157.240.0.0/16', '69.171.250.0/24', '69.171.251.0/24'];
-        const clientIP = req.ip;
-        
-        const isWhatsAppIP = whatsappIPs.some(range => 
-            clientIP.startsWith(range.split('/')[0].slice(0, -1))
-        );
-
-        if (!isWhatsAppIP) {
-            console.warn(`Unauthorized IP attempt: ${clientIP}`);
-            return res.status(403).json({ error: 'Unauthorized IP' });
-        }
-    }
-    next();
-});
-
 // Initialize Google Translate with credentials
 let credentials;
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
