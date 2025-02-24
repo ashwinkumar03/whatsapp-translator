@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 // Add this near the top of the file, after imports
 const isTestEnvironment = process.env.NODE_ENV === 'development';
-const DEBUG = process.env.NODE_ENV === 'production';
+const DEBUG = true; // Force debug mode regardless of NODE_ENV
 
 // Add after your imports
 const requiredEnvVars = [
@@ -112,21 +112,21 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// Add this to your environment variables
-const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',') || [];
+// Update ALLOWED_PHONE_NUMBERS to include country code
+const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',').map(num => 
+    num.startsWith('1') ? num : `1${num}`
+) || [];
 
-// Add this logging middleware before your routes
+// Update the logging middleware
 app.use((req, res, next) => {
-    if (DEBUG) {
-        console.log('--------------------');
-        console.log('New Request:');
-        console.log('Time:', new Date().toISOString());
-        console.log('Method:', req.method);
-        console.log('Path:', req.path);
-        console.log('Headers:', JSON.stringify(req.headers, null, 2));
-        console.log('Body:', JSON.stringify(req.body, null, 2));
-        console.log('--------------------');
-    }
+    console.log('--------------------');
+    console.log('New Request:');
+    console.log('Time:', new Date().toISOString());
+    console.log('Method:', req.method);
+    console.log('Path:', req.path);
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('--------------------');
     next();
 });
 
@@ -140,7 +140,13 @@ app.post('/webhook', [
     // Add WhatsApp signature validation
     header('x-hub-signature-256').exists(),
 ], async (req, res) => {
-    if (DEBUG) console.log('Webhook POST received');
+    console.log('Webhook POST received');
+    console.log('Full request:', {
+        headers: req.headers,
+        body: req.body,
+        query: req.query,
+        params: req.params
+    });
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -217,7 +223,7 @@ async function sendMessage(phone_number_id, to, message) {
     }
 
     // Real WhatsApp API call for production
-    const url = `https://graph.facebook.com/v12.0/${phone_number_id}/messages`;
+    const url = `https://graph.facebook.com/v18.0/${phone_number_id}/messages`;
     
     try {
         const response = await fetch(url, {
