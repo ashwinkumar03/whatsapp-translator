@@ -19,7 +19,8 @@ const requiredEnvVars = [
     'GOOGLE_PROJECT_ID',
     'GOOGLE_APPLICATION_CREDENTIALS_JSON',
     'ALLOWED_PHONE_NUMBERS',
-    'NODE_ENV'
+    'NODE_ENV',
+    'WHATSAPP_PHONE_NUMBER_ID'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -193,8 +194,8 @@ app.post('/webhook', [
             console.log('Received message:', message);
             
             try {
-                // Get the correct phone_number_id from metadata
-                const phone_number_id = value.metadata.phone_number_id;
+                // Use environment variable instead of constant
+                const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID;
                 const from = message.from;
                 const msg_body = message.text.body;
 
