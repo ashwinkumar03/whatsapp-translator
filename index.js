@@ -90,10 +90,13 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// Update ALLOWED_PHONE_NUMBERS to include country code
-const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',').map(num => 
-    num.startsWith('1') ? num : `1${num}`
-) || [];
+// Make the phone number validation more flexible
+const ALLOWED_PHONE_NUMBERS = process.env.ALLOWED_PHONE_NUMBERS?.split(',').map(num => {
+    // Strip any non-digit characters
+    const cleaned = num.replace(/\D/g, '');
+    // Ensure it has country code (assuming US/Canada for simplicity)
+    return cleaned.startsWith('1') ? cleaned : `1${cleaned}`;
+}) || [];
 
 // Add debug line to verify allowed numbers on startup
 console.log('Allowed phone numbers:', ALLOWED_PHONE_NUMBERS);
@@ -119,6 +122,13 @@ app.post('/webhook', [
     body('entry.*.changes.*.value.messages.*.from').exists(),
     header('x-hub-signature-256').exists(),
 ], async (req, res) => {
+    console.log('Environment:', {
+        NODE_ENV: process.env.NODE_ENV,
+        DEBUG: DEBUG,
+        isTestEnvironment: isTestEnvironment,
+        ALLOWED_PHONE_NUMBERS: ALLOWED_PHONE_NUMBERS
+    });
+
     console.log('Webhook POST received');
     console.log('Full request:', {
         headers: req.headers,
@@ -135,19 +145,35 @@ app.post('/webhook', [
 
     // Re-enable signature verification
     try {
-        const signature = req.header('x-hub-signature-256');
-        const expectedSignature = crypto
-            .createHmac('sha256', process.env.WHATSAPP_TOKEN)
-            .update(Buffer.from(JSON.stringify(req.body)))
-            .digest('hex');
+        // Only verify signature in production mode
+        if (process.env.NODE_ENV === 'production' && !isTestEnvironment) {
+            const signature = req.header('x-hub-signature-256');
+            
+            // Skip signature check if it's missing and we're in debug mode
+            if (!signature && DEBUG) {
+                console.warn('Missing signature, but continuing due to DEBUG mode');
+            } else if (!signature) {
+                console.warn('Missing signature');
+                return res.sendStatus(401);
+            } else {
+                const expectedSignature = crypto
+                    .createHmac('sha256', process.env.WHATSAPP_TOKEN)
+                    .update(Buffer.from(JSON.stringify(req.body)))
+                    .digest('hex');
 
-        if (!signature || `sha256=${expectedSignature}` !== signature) {
-            console.warn('Invalid signature received');
-            return res.sendStatus(401);
+                if (`sha256=${expectedSignature}` !== signature) {
+                    console.warn('Invalid signature received');
+                    return res.sendStatus(401);
+                }
+            }
         }
     } catch (error) {
         console.error('Signature verification failed:', error);
-        return res.sendStatus(401);
+        if (!DEBUG) {
+            return res.sendStatus(401);
+        } else {
+            console.warn('Continuing despite signature verification failure due to DEBUG mode');
+        }
     }
 
     if (req.body.object === 'whatsapp_business_account') {
@@ -167,7 +193,7 @@ app.post('/webhook', [
             console.log('Received message:', message);
             
             // Add phone number check
-            if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
+            if (!ALLOWED_PHONE_NUMBERS.includes(from) && !DEBUG) {
                 console.log(`Unauthorized phone number attempted to use bot: ${from}`);
                 // Send a friendly message to unauthorized users
                 await sendMessage(
@@ -178,6 +204,8 @@ app.post('/webhook', [
                 return res.status(403).json({
                     error: 'Unauthorized phone number'
                 });
+            } else if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
+                console.log(`Unauthorized phone number bypassed in DEBUG mode: ${from}`);
             }
             
             try {
