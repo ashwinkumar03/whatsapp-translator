@@ -231,8 +231,8 @@ app.post('/webhook', [
             }
             
             try {
-                // Use environment variable instead of constant
-                const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID;
+                // Use the phone_number_id from the incoming message instead of the environment variable
+                const phone_number_id = value.metadata.phone_number_id;
                 const msg_body = message.text.body;
 
                 console.log('Processing message:', {
