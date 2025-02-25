@@ -145,10 +145,12 @@ app.post('/webhook', [
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             console.log('Validation errors:', errors.array());
-            return res.status(400).json({ errors: errors.array() });
+            // Don't send response, just log
+            console.log('Validation failed');
+            return; // Exit early
         }
 
-        // Re-enable signature verification
+        // Signature verification
         try {
             // Only verify signature in production mode
             if (process.env.NODE_ENV === 'production' && !isTestEnvironment) {
@@ -159,7 +161,7 @@ app.post('/webhook', [
                     console.warn('Missing signature, but continuing due to DEBUG mode');
                 } else if (!signature) {
                     console.warn('Missing signature');
-                    return res.sendStatus(401);
+                    return; // Exit early
                 } else {
                     // Log the raw body and signature for debugging
                     console.log('Raw body:', JSON.stringify(req.body));
@@ -190,14 +192,14 @@ app.post('/webhook', [
                         console.warn('Invalid signature received, but continuing due to DEBUG mode');
                     } else {
                         console.warn('Invalid signature received');
-                        return res.sendStatus(401);
+                        return; // Exit early
                     }
                 }
             }
         } catch (error) {
             console.error('Signature verification failed:', error);
             if (!DEBUG) {
-                return res.sendStatus(401);
+                return; // Exit early
             } else {
                 console.warn('Continuing despite signature verification failure due to DEBUG mode');
             }
@@ -231,9 +233,7 @@ app.post('/webhook', [
                         from,
                         "Sorry, this translation service is currently restricted to authorized users only."
                     );
-                    return res.status(403).json({
-                        error: 'Unauthorized phone number'
-                    });
+                    return; // Exit early
                 } else if (!ALLOWED_PHONE_NUMBERS.includes(from)) {
                     console.log(`Unauthorized phone number bypassed in DEBUG mode: ${from}`);
                 }
@@ -251,27 +251,21 @@ app.post('/webhook', [
                     // Send the translated message back
                     await sendMessage(phone_number_id, from, `Translated text: ${translation}`);
                     
-                    return res.status(200).json({ 
-                        success: true, 
-                        translation: translation 
-                    });
+                    // Log success instead of sending response
+                    console.log('Translation successful:', translation);
                 } catch (error) {
                     console.error('Translation error:', error);
-                    return res.status(500).json({ 
-                        error: 'Translation failed',
-                        details: error.message 
-                    });
+                    // Log error instead of sending response
                 }
             } else if (value.statuses) {
                 // Handle status update
                 console.log('Received status update:', value.statuses[0]);
-                return res.sendStatus(200); // Acknowledge status updates
             }
+        } else {
+            console.log('Invalid request format');
         }
         
-        res.status(400).json({ error: 'Invalid request format' });
-        
-        // Instead of returning responses, just log the results
+        // Log completion instead of sending response
         console.log('Processing completed successfully');
     } catch (error) {
         console.error('Error processing webhook:', error);
