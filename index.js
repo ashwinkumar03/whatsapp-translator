@@ -213,13 +213,16 @@ app.post('/webhook', [
             const from = message.from;
             
             console.log('Received message:', message);
+            console.log('Full value object:', JSON.stringify(value, null, 2));
             
             // Add phone number check
             if (!ALLOWED_PHONE_NUMBERS.includes(from) && !DEBUG) {
                 console.log(`Unauthorized phone number attempted to use bot: ${from}`);
+                // Use the correct phone number ID from the metadata
+                const phone_number_id = value.metadata.phone_number_id;
                 // Send a friendly message to unauthorized users
                 await sendMessage(
-                    process.env.WHATSAPP_PHONE_NUMBER_ID,
+                    phone_number_id,
                     from,
                     "Sorry, this translation service is currently restricted to authorized users only."
                 );
@@ -231,16 +234,12 @@ app.post('/webhook', [
             }
             
             try {
-                // Use the phone_number_id from the incoming message instead of the environment variable
+                // Use the phone_number_id from the incoming message
                 const phone_number_id = value.metadata.phone_number_id;
                 const msg_body = message.text.body;
 
-                console.log('Processing message:', {
-                    phone_number_id,
-                    from,
-                    msg_body
-                });
-
+                console.log('Processing message with phone_number_id:', phone_number_id);
+                
                 // Translate the message to English
                 const [translation] = await translate.translate(msg_body, 'en');
                 
