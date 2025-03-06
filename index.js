@@ -314,6 +314,10 @@ app.get('/', (req, res) => {
     res.status(200).send('WhatsApp Translator Bot is running!');
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
 app.listen(port, () => {
     console.log(`Webhook is listening on port ${port}`);
 }); 

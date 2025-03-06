@@ -1,0 +1,16 @@
+name: Service Heartbeat
+
+on:
+  schedule:
+    - cron: '*/12 * * * *'  # Run every 12 minutes
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Send health check request
+        run: |
+          curl -f https://whatsapp-translator.onrender.com/health
+        continue-on-error: false 
