@@ -2,7 +2,7 @@ name: Service Heartbeat
 
 on:
   schedule:
-    - cron: '*/12 * * * *'  # Run every 12 minutes
+    - cron: '*/8 * * * *'  # Run every 8 minutes
   workflow_dispatch:  # Allows manual triggering from GitHub UI
 
 jobs:
